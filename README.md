@@ -3,6 +3,7 @@ Nexus is a next-generation smart intercom system that transforms every room into
 Whether you are calling the kitchen from the garage or routing an external call to a specific bedroom, Nexus offers granular control with personalized profiles and custom ringtones for every zone in your house.
 
 # Structure
+```
 /nexus
 ├── /apps
 │   ├── /web                  # Browser Client (Vite + React)
@@ -50,3 +51,4 @@ Whether you are calling the kitchen from the garage or routing an external call 
 ├── package.json              # Workspaces config
 ├── turbo.json                # Turborepo config (Recommended)
 └── README.md
+```
