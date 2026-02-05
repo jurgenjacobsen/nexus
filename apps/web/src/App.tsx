@@ -1,11 +1,7 @@
-import { useCallStore } from '@repo/client-core';
+import CallInterface from './CallInterface';
 
 function App() {
-  const { inCall, startCall } = useCallStore();
-  return (
-    <button onClick={startCall}>
-      {inCall ? "In Call..." : "Call Kitchen"}
-    </button>
-  );
+  return <CallInterface />;
 }
+
 export default App;
