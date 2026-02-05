@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Call Test - Standalone Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .setup {
+            margin-bottom: 20px;
+        }
+        .setup input {
+            padding: 10px;
+            width: 200px;
+            margin-right: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-secondary { background: #6b7280; color: white; }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .status.connected { background: #d1fae5; color: #065f46; }
+        .status.disconnected { background: #fee2e2; color: #991b1b; }
+        .status.calling { background: #fef3c7; color: #92400e; }
+        .status.active { background: #dbeafe; color: #1e40af; }
+        .videos {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .video-container {
+            position: relative;
+            background: #1a1a1a;
+            border-radius: 15px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-label {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+        #log {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦊 Nexus Call Test</h1>
+        
+        <div class="setup">
+            <input type="text" id="userId" placeholder="Your User ID (e.g., alice)" />
+            <button class="btn-primary" onclick="connect()">Connect</button>
+            <span id="wsStatus" class="status disconnected">Disconnected</span>
+        </div>
+
+        <div class="setup" id="callSetup" style="display: none;">
+            <input type="text" id="targetId" placeholder="Target User ID (e.g., bob)" />
+            <label><input type="checkbox" id="hasVideo" checked /> Video</label>
+            <label><input type="checkbox" id="hasAudio" checked /> Audio</label>
+            <button class="btn-success" onclick="startCall()">📞 Call</button>
+        </div>
+
+        <div class="videos" id="videos" style="display: none;">
+            <div class="video-container">
+                <div class="video-label">You</div>
+                <video id="localVideo" autoplay muted playsinline></video>
+            </div>
+            <div class="video-container">
+                <div class="video-label">Remote</div>
+                <video id="remoteVideo" autoplay playsinline></video>
+            </div>
+        </div>
+
+        <div class="controls" id="controls" style="display: none;">
+            <button class="btn-secondary" onclick="toggleAudio()">🎤 <span id="audioStatus">Mute</span></button>
+            <button class="btn-secondary" onclick="toggleVideo()">📹 <span id="videoStatus">Hide Video</span></button>
+            <button class="btn-danger" onclick="endCall()">📞 End Call</button>
+        </div>
+
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let pc = null;
+        let localStream = null;
+        let remoteStream = null;
+        let currentUserId = '';
+        let remoteUserId = '';
+        let isAudioEnabled = true;
+        let isVideoEnabled = true;
+
+        const iceServers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+            ]
+        };
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function connect() {
+            currentUserId = document.getElementById('userId').value.trim();
+            if (!currentUserId) {
+                alert('Please enter a user ID');
+                return;
+            }
+
+            ws = new WebSocket('ws://localhost:3000/ws');
+            
+            ws.onopen = () => {
+                log('WebSocket connected');
+                document.getElementById('wsStatus').textContent = 'Connected';
+                document.getElementById('wsStatus').className = 'status connected';
+                document.getElementById('callSetup').style.display = 'block';
+            };
+
+            ws.onmessage = async (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`Received: ${data.type}`);
+                    
+                    switch (data.type) {
+                        case 'call:request':
+                            await handleIncomingCall(data.payload);
+                            break;
+                        case 'call:response':
+                            await handleCallResponse(data.payload);
+                            break;
+                        case 'webrtc:offer':
+                            await handleOffer(data.payload);
+                            break;
+                        case 'webrtc:answer':
+                            await handleAnswer(data.payload);
+                            break;
+                        case 'webrtc:candidate':
+                            await handleIceCandidate(data.payload);
+                            break;
+                        case 'call:end':
+                            handleCallEnd();
+                            break;
+                    }
+                } catch (error) {
+                    log('Error: ' + error.message);
+                }
+            };
+
+            ws.onerror = (error) => {
+                log('WebSocket error');
+                console.error(error);
+            };
+
+            ws.onclose = () => {
+                log('WebSocket disconnected');
+                document.getElementById('wsStatus').textContent = 'Disconnected';
+                document.getElementById('wsStatus').className = 'status disconnected';
+            };
+        }
+
+        async function startCall() {
+            remoteUserId = document.getElementById('targetId').value.trim();
+            if (!remoteUserId) {
+                alert('Please enter target user ID');
+                return;
+            }
+
+            const hasVideo = document.getElementById('hasVideo').checked;
+            const hasAudio = document.getElementById('hasAudio').checked;
+
+            log(`Starting call to ${remoteUserId}`);
+            
+            ws.send(JSON.stringify({
+                type: 'call:request',
+                payload: {
+                    from: currentUserId,
+                    to: remoteUserId,
+                    hasVideo,
+                    hasAudio
+                }
+            }));
+        }
+
+        async function handleIncomingCall(request) {
+            remoteUserId = request.from;
+            if (confirm(`Incoming call from ${request.from}. Accept?`)) {
+                await setupWebRTC();
+                
+                ws.send(JSON.stringify({
+                    type: 'call:response',
+                    payload: {
+                        from: currentUserId,
+                        to: remoteUserId,
+                        accepted: true
+                    }
+                }));
+            } else {
+                ws.send(JSON.stringify({
+                    type: 'call:response',
+                    payload: {
+                        from: currentUserId,
+                        to: remoteUserId,
+                        accepted: false
+                    }
+                }));
+            }
+        }
+
+        async function handleCallResponse(response) {
+            if (!response.accepted) {
+                log('Call rejected');
+                return;
+            }
+
+            log('Call accepted, setting up WebRTC');
+            await setupWebRTC();
+
+            // Create offer
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            ws.send(JSON.stringify({
+                type: 'webrtc:offer',
+                payload: {
+                    from: currentUserId,
+                    to: remoteUserId,
+                    offer: offer
+                }
+            }));
+        }
+
+        async function setupWebRTC() {
+            pc = new RTCPeerConnection(iceServers);
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({
+                        type: 'webrtc:candidate',
+                        payload: {
+                            from: currentUserId,
+                            to: remoteUserId,
+                            candidate: event.candidate.toJSON()
+                        }
+                    }));
+                }
+            };
+
+            pc.ontrack = (event) => {
+                log('Received remote stream');
+                const remoteVideo = document.getElementById('remoteVideo');
+                remoteVideo.srcObject = event.streams[0];
+                remoteStream = event.streams[0];
+            };
+
+            // Get user media
+            const hasVideo = document.getElementById('hasVideo').checked;
+            const hasAudio = document.getElementById('hasAudio').checked;
+            
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: hasVideo ? { width: 1280, height: 720 } : false,
+                audio: hasAudio
+            });
+
+            const localVideo = document.getElementById('localVideo');
+            localVideo.srcObject = localStream;
+
+            localStream.getTracks().forEach(track => {
+                pc.addTrack(track, localStream);
+            });
+
+            document.getElementById('videos').style.display = 'grid';
+            document.getElementById('controls').style.display = 'block';
+            log('Local stream started');
+        }
+
+        async function handleOffer(data) {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            ws.send(JSON.stringify({
+                type: 'webrtc:answer',
+                payload: {
+                    from: currentUserId,
+                    to: remoteUserId,
+                    answer: answer
+                }
+            }));
+        }
+
+        async function handleAnswer(data) {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+            log('WebRTC connection established');
+        }
+
+        async function handleIceCandidate(data) {
+            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+
+        function toggleAudio() {
+            if (localStream) {
+                isAudioEnabled = !isAudioEnabled;
+                localStream.getAudioTracks().forEach(track => {
+                    track.enabled = isAudioEnabled;
+                });
+                document.getElementById('audioStatus').textContent = isAudioEnabled ? 'Mute' : 'Unmute';
+                log(isAudioEnabled ? 'Audio enabled' : 'Audio muted');
+            }
+        }
+
+        function toggleVideo() {
+            if (localStream) {
+                isVideoEnabled = !isVideoEnabled;
+                localStream.getVideoTracks().forEach(track => {
+                    track.enabled = isVideoEnabled;
+                });
+                document.getElementById('videoStatus').textContent = isVideoEnabled ? 'Hide Video' : 'Show Video';
+                log(isVideoEnabled ? 'Video enabled' : 'Video disabled');
+            }
+        }
+
+        function endCall() {
+            ws.send(JSON.stringify({
+                type: 'call:end',
+                payload: {
+                    from: currentUserId,
+                    to: remoteUserId
+                }
+            }));
+            cleanup();
+        }
+
+        function handleCallEnd() {
+            log('Call ended by remote user');
+            cleanup();
+        }
+
+        function cleanup() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+
+            document.getElementById('videos').style.display = 'none';
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            remoteUserId = '';
+            log('Cleaned up resources');
+        }
+    </script>
+</body>
+</html>
