@@ -31,6 +31,12 @@ This repository now includes a complete WebRTC-based audio and video calling sys
 - 🏗️ [**Architecture**](ARCHITECTURE.md) - System design and data flow
 - 🧪 [**Testing Guide**](TESTING.md) - How to test the calling features
 - 📋 [**Implementation Summary**](IMPLEMENTATION_SUMMARY.md) - What was built
+- 🔧 [**Troubleshooting**](TROUBLESHOOTING.md) - Common issues and solutions
+
+### Debugging Tools
+
+- `test-demo.html` - Full-featured standalone demo
+- `websocket-test.html` - Simple WebSocket connection test
 
 ### Features
 
