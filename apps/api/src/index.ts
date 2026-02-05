@@ -9,8 +9,11 @@ import {
   WebRTCIceCandidate
 } from "@repo/shared-types";
 
+// Type for connected WebSocket clients
+type WSClient = any; // Elysia's WebSocket type
+
 // Store connected clients
-const clients = new Map<string, any>();
+const clients = new Map<string, WSClient>();
 
 const app = new Elysia()
   .ws('/ws', {
@@ -53,7 +56,7 @@ const app = new Elysia()
             } else {
               // Target not available
               ws.send(JSON.stringify({
-                type: 'error',
+                type: SOCKET_EVENTS.ERROR,
                 payload: { message: 'Target user not available' }
               }));
             }

@@ -60,5 +60,8 @@ export const SOCKET_EVENTS = {
   // WebRTC signaling events
   WEBRTC_OFFER: "webrtc:offer",
   WEBRTC_ANSWER: "webrtc:answer",
-  ICE_CANDIDATE: "webrtc:candidate"
+  ICE_CANDIDATE: "webrtc:candidate",
+  
+  // Error events
+  ERROR: "error"
 } as const;

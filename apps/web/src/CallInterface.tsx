@@ -104,7 +104,7 @@ function CallInterface() {
               placeholder="Enter your User ID (e.g., user1)"
               value={currentUserId}
               onChange={(e) => setCurrentUserId(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleInitialize()}
+              onKeyDown={(e) => e.key === 'Enter' && handleInitialize()}
             />
             <button
               className="control-btn primary"
@@ -124,7 +124,7 @@ function CallInterface() {
                     placeholder="Enter target User ID (e.g., user2)"
                     value={targetUserId}
                     onChange={(e) => setTargetUserId(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleStartCall()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleStartCall()}
                   />
                 </div>
 

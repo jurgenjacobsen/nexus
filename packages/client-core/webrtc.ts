@@ -55,7 +55,9 @@ export class WebRTCService {
       return this.localStream;
     } catch (error) {
       console.error('Error accessing media devices:', error);
-      throw error;
+      // Provide helpful error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to access camera/microphone. Please check permissions and ensure devices are available. Details: ${errorMessage}`);
     }
   }
 
