@@ -12,7 +12,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: nexus-desktop
+  executableName: nexus
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
