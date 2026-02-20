@@ -138,8 +138,7 @@ function App(): React.JSX.Element {
     return () => {
       ws.close()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRoom])
+  }, [selectedRoom, householdId, send])
 
   // ---------- Call actions ----------
   const startCall = (targetRoomId: string, mode: CallMode): void => {
