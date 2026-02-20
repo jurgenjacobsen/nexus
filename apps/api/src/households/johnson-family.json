@@ -1,0 +1,11 @@
+{
+  "householdId": "johnson-family",
+  "name": "Johnson Family Residence",
+  "rooms": [
+    { "id": "kitchen", "name": "Kitchen", "extension": 201 },
+    { "id": "living-room", "name": "Living Room", "extension": 202 },
+    { "id": "bedroom-1", "name": "Bedroom 1", "extension": 203 },
+    { "id": "bedroom-2", "name": "Bedroom 2", "extension": 204 },
+    { "id": "basement", "name": "Basement", "extension": 205 }
+  ]
+}
