@@ -1,0 +1,12 @@
+{
+  "householdId": "smith-family",
+  "name": "Smith Family Residence",
+  "rooms": [
+    { "id": "kitchen", "name": "Kitchen", "extension": 101 },
+    { "id": "living-room", "name": "Living Room", "extension": 102 },
+    { "id": "master-bedroom", "name": "Master Bedroom", "extension": 103 },
+    { "id": "kids-bedroom", "name": "Kids Bedroom", "extension": 104 },
+    { "id": "garage", "name": "Garage", "extension": 105 },
+    { "id": "office", "name": "Home Office", "extension": 106 }
+  ]
+}

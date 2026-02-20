@@ -1,46 +1,123 @@
-// server.ts
-const peers = new Map(); // Stores active connections in memory: { socketId: WebSocket }
+import type { HouseholdConfig, RoomStatus } from '@repo/shared-types';
+import { SOCKET_EVENTS } from '@repo/shared-types';
+import { readFileSync, readdirSync } from 'fs';
+import { join } from 'path';
+
+// Load all household configs from the households directory
+function loadHouseholds(): Map<string, HouseholdConfig> {
+  const households = new Map<string, HouseholdConfig>();
+  const dir = join(import.meta.dir, 'households');
+  const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
+  for (const file of files) {
+    const config: HouseholdConfig = JSON.parse(readFileSync(join(dir, file), 'utf-8'));
+    households.set(config.householdId, config);
+  }
+  return households;
+}
+
+const households = loadHouseholds();
+console.log(`Loaded ${households.size} household config(s)`);
+
+// Active connections: key = `${householdId}:${roomId}`, value = WebSocket
+const peers = new Map<string, any>();
+
+function broadcastRoomStatus(householdId: string): void {
+  const config = households.get(householdId);
+  if (!config) return;
+
+  const statuses: RoomStatus[] = config.rooms.map((room) => ({
+    roomId: room.id,
+    name: room.name,
+    extension: room.extension,
+    online: peers.has(`${householdId}:${room.id}`),
+  }));
+
+  // Send to every connected room in this household
+  for (const room of config.rooms) {
+    const key = `${householdId}:${room.id}`;
+    const ws = peers.get(key);
+    if (ws) {
+      ws.send(JSON.stringify({ type: SOCKET_EVENTS.ROOM_STATUS, rooms: statuses }));
+    }
+  }
+}
 
 const server = Bun.serve({
   port: 3000,
   fetch(req, server) {
-    // Upgrade HTTP request to WebSocket
-    if (server.upgrade(req)) {
-      return; // Bun automatically handles the 101 Switching Protocols response
+    const url = new URL(req.url);
+
+    // REST endpoint: GET /households — list available households
+    if (url.pathname === '/households' && req.method === 'GET') {
+      const list = Array.from(households.values()).map((h) => ({
+        householdId: h.householdId,
+        name: h.name,
+        rooms: h.rooms,
+      }));
+      return new Response(JSON.stringify(list), {
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
-    return new Response("This is a Signaling Server. Use a WebSocket client.");
+
+    if (server.upgrade(req)) {
+      return;
+    }
+    return new Response('Nexus Household Signaling Server. Use a WebSocket client.');
   },
   websocket: {
     open(ws: any) {
-      // Generate a simple random ID for the connected user
-      ws.data = { id: crypto.randomUUID().slice(0, 4) };
-      peers.set(ws.data.id, ws);
-      console.log(`Client connected: ${ws.data.id}`);
-      
-      // Tell the user their own ID
-      ws.send(JSON.stringify({ type: 'me', id: ws.data.id }));
+      ws.data = { id: crypto.randomUUID().slice(0, 8), householdId: null, roomId: null };
+      console.log(`Socket connected: ${ws.data.id}`);
     },
     message(ws: any, message: any) {
-      const data = JSON.parse(message);
-      
-      // Universal routing: Just forward the message to the intended target
-      if (data.targetId && peers.has(data.targetId)) {
-        const targetWs = peers.get(data.targetId);
-        
-        // Forward the message but tag who it came from
-        targetWs.send(JSON.stringify({
-          ...data,
-          senderId: ws.data.id
-        }));
-      } else {
-        console.warn(`Target ${data.targetId} not found`);
+      const data = JSON.parse(String(message));
+
+      // Room registration: client tells us which household + room it is
+      if (data.type === SOCKET_EVENTS.REGISTER) {
+        const { householdId, roomId } = data;
+        const config = households.get(householdId);
+        if (!config || !config.rooms.find((r) => r.id === roomId)) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Invalid household or room' }));
+          return;
+        }
+        ws.data.householdId = householdId;
+        ws.data.roomId = roomId;
+        const key = `${householdId}:${roomId}`;
+        peers.set(key, ws);
+        console.log(`Room registered: ${key}`);
+
+        const room = config.rooms.find((r) => r.id === roomId)!;
+        ws.send(JSON.stringify({ type: 'registered', householdId, roomId, roomName: room.name }));
+
+        broadcastRoomStatus(householdId);
+        return;
+      }
+
+      // For all other messages, route to the target room in the same household
+      if (data.targetRoomId && ws.data.householdId) {
+        const targetKey = `${ws.data.householdId}:${data.targetRoomId}`;
+        const targetWs = peers.get(targetKey);
+        if (targetWs) {
+          targetWs.send(
+            JSON.stringify({
+              ...data,
+              senderRoomId: ws.data.roomId,
+            }),
+          );
+        } else {
+          ws.send(JSON.stringify({ type: 'error', message: `Room ${data.targetRoomId} is not online` }));
+        }
       }
     },
     close(ws: any) {
-      peers.delete(ws.data.id);
-      console.log(`Client disconnected: ${ws.data.id}`);
+      if (ws.data.householdId && ws.data.roomId) {
+        const key = `${ws.data.householdId}:${ws.data.roomId}`;
+        peers.delete(key);
+        console.log(`Room disconnected: ${key}`);
+        broadcastRoomStatus(ws.data.householdId);
+      }
     },
   },
 });
 
-console.log(`Signaling server running on port ${server.port}`);
+console.log(`Nexus signaling server running on port ${server.port}`);
