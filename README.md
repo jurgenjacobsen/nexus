@@ -3,7 +3,7 @@ Nexus is a next-generation smart intercom system that transforms every room into
 Whether you are calling the kitchen from the garage or routing an external call to a specific bedroom, Nexus offers granular control with personalized profiles and custom ringtones for every zone in your house.
 
 # UI Example
-![Nexus UI Mockup]()
+![Nexus UI Mockup](https://github.com/jurgenjacobsen/nexus/blob/main/.github/assets/UI_Example.jpg?raw=true)
 
 # Structure
 ```
